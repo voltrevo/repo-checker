@@ -1,0 +1,7 @@
+{
+  "extends": "eslint-config-opentok",
+  "rules": {},
+  "plugins": [
+    "require-path-exists"
+  ]
+}
