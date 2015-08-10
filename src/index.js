@@ -15,26 +15,79 @@ var debugExec = function(cmd) {
   });
 };
 
+var chdirToOnlyDir = function() {
+  return new Promise(function(resolve, reject) {
+    fs.readdir('.', function(err, files) {
+      if (err) {
+        reject(err);
+        return;
+      }
+
+      console.log(files);
+
+      resolve(process.chdir(files[0]));
+    });
+  });
+};
+
+var createFileIfNeeded = function(fname, genContents) {
+  return function() {
+    return new Promise(function(resolve, reject) {
+      fs.stat(fname, function(err) {
+        if (!err) {
+          resolve('file exists');
+          return;
+        }
+
+        fs.writeFile(
+          fname,
+          genContents(),
+          function(err) {
+            if (err) {
+              reject(err);
+            } else {
+              resolve('file created');
+            }
+          }
+        );
+      });
+    });
+  };
+};
+
+var execCmds = function(cmds) {
+  var loop = (function() {
+    var i = 0;
+
+    return function(x) {
+      if (i === cmds.length) {
+        return x;
+      }
+
+      var cmd = cmds[i++];
+
+      if (typeof cmd === 'function') {
+        return cmd().then(loop);
+      }
+
+      return debugExec(cmd).then(loop);
+    };
+  }());
+
+  return loop();
+};
+
 module.exports = function(repoStr) {
   return tmpDir().then(function(dir) {
     var workDir = dir.path;
     console.log(workDir);
     process.chdir(workDir);
 
-    var cmds = [
+    return execCmds([
+      'ls',
       'git clone ' + repoStr,
-      function() {
-        return new Promise(function(resolve, reject) {
-          fs.readdir('.', function(err, files) {
-            if (err) {
-              reject(err);
-              return;
-            }
-
-            resolve(process.chdir(files[0]));
-          });
-        });
-      },
+      'ls',
+      chdirToOnlyDir,
       'pwd',
       'ls',
 
@@ -43,52 +96,15 @@ module.exports = function(repoStr) {
       'touch package.json',
 
       'npm install',
-      function() {
-        return new Promise(function(resolve, reject) {
-          fs.stat('./eslintrc', function(err) {
-            if (!err) {
-              resolve();
-              return;
-            }
 
-            fs.writeFile(
-              '.eslintrc',
-              JSON.stringify({
-                'extends': 'eslint-config-opentok'
-              }),
-              function(err) {
-                if (err) {
-                  reject(err);
-                } else {
-                  resolve();
-                }
-              }
-            );
-          });
+      createFileIfNeeded('./.eslintrc', function() {
+        return JSON.stringify({
+          'extends': 'eslint-config-opentok'
         });
-      },
+      }),
+
       'npm install eslint eslint-config-opentok',
       './node_modules/.bin/eslint $(git ls-files | grep \\.js$)'
-    ];
-
-    var loop = (function() {
-      var i = 0;
-
-      return function(x) {
-        if (i === cmds.length) {
-          return x;
-        }
-
-        var cmd = cmds[i++];
-
-        if (typeof cmd === 'function') {
-          return cmd().then(loop);
-        }
-
-        return debugExec(cmd).then(loop);
-      };
-    }());
-
-    return loop();
+    ]);
   });
 };
