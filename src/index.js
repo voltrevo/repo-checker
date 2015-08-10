@@ -1,6 +1,7 @@
 'use strict';
 
 var childProcessPromise = require('child-process-promise');
+var defaultDefaultConfig = require('./defaultConfig.js');
 var exec = childProcessPromise.exec;
 var runEslint = require('./runEslint.js');
 var fs = require('fs');
@@ -87,7 +88,7 @@ var execCmds = function(cmds, logger) {
 };
 
 module.exports = function(repoStr, defaultConfigParam, logger) {
-  var defaultConfig = defaultConfigParam || 'eslint-config-airbnb';
+  var defaultConfig = defaultConfigParam || defaultDefaultConfig;
 
   logger('start');
 
