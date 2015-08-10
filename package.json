@@ -8,9 +8,11 @@
   },
   "author": "Andrew Morris",
   "license": "MIT",
-  "devDependencies": {
-    "eslint": "^1.0.0",
+  "dependencies": {
+    "child-process-promise": "^1.1.0",
+    "eslint": "^0.24.1",
     "eslint-config-opentok": "0.0.1",
-    "eslint-plugin-require-path-exists": "^1.0.15"
+    "eslint-plugin-require-path-exists": "^1.0.15",
+    "tmp": "0.0.26"
   }
 }

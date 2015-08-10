@@ -1,6 +1,10 @@
 {
   "extends": "eslint-config-opentok",
-  "rules": {},
+  "rules": {
+    "dot-notation": [2, {"allowKeywords": true}],
+    "no-console": 0,
+    "vars-on-top": 0
+  },
   "plugins": [
     "require-path-exists"
   ]
