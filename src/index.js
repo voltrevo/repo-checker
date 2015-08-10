@@ -4,18 +4,9 @@ var logWrap = require('./logWrap.js');
 
 var childProcessPromise = require('child-process-promise');
 var exec = logWrap('exec', childProcessPromise.exec);
-var spawn = childProcessPromise.spawn;
+var runEslint = require('./runEslint.js');
 var fs = require('fs');
 var tmpDir = logWrap('tmpDir', require('./tmpDir.js'));
-
-/* var debugExec = function(cmd) {
-  return exec(cmd).then(function(result) {
-    console.log('  stdout:', result.stdout);
-    console.log('  stderr:', result.stderr);
-
-    return result;
-  });
-}; */
 
 var chdirToOnlyDir = function() {
   return new Promise(function(resolve, reject) {
@@ -24,8 +15,6 @@ var chdirToOnlyDir = function() {
         reject(err);
         return;
       }
-
-      console.log(files);
 
       resolve(process.chdir(files[0]));
     });
@@ -105,53 +94,11 @@ module.exports = function(repoStr) {
       'git ls-files | grep \\.js$',
 
       function(lsFiles) {
-        var stdout = '';
-        var stderr = '';
-
-        console.log('lsFiles:', lsFiles);
-
-        return new Promise(function(resolve, reject) {
-          spawn(
-            './node_modules/.bin/eslint',
-            lsFiles.stdout.split('\n').filter(function(fname) {
-              return fname !== '';
-            })
-          ).progress(function(childProcess) {
-            childProcess.stdout.on('data', function(data) {
-              stdout += data.toString();
-            });
-
-            childProcess.stderr.on('data', function(data) {
-              stderr += data.toString();
-            });
-
-            var stdoutFinished = false;
-            var stderrFinished = false;
-
-            var tryEnd = function() {
-              if (stdoutFinished && stderrFinished) {
-                if (stderr.length > 0) {
-                  reject({
-                    stdout: stdout,
-                    stderr: stderr
-                  });
-                } else {
-                  resolve(stdout);
-                }
-              }
-            };
-
-            childProcess.stdout.on('end', function() {
-              stdoutFinished = true;
-              tryEnd();
-            });
-
-            childProcess.stderr.on('end', function() {
-              stderrFinished = true;
-              tryEnd();
-            });
-          });
-        });
+        return runEslint(
+          lsFiles.stdout.split('\n').filter(function(fname) {
+            return fname !== '';
+          })
+        );
       }
     ]);
   });
