@@ -2,18 +2,20 @@
 
 var logWrap = require('./logWrap.js');
 
-var exec = logWrap('exec', require('child-process-promise').exec);
+var childProcessPromise = require('child-process-promise');
+var exec = logWrap('exec', childProcessPromise.exec);
+var spawn = childProcessPromise.spawn;
 var fs = require('fs');
 var tmpDir = logWrap('tmpDir', require('./tmpDir.js'));
 
-var debugExec = function(cmd) {
+/* var debugExec = function(cmd) {
   return exec(cmd).then(function(result) {
     console.log('  stdout:', result.stdout);
     console.log('  stderr:', result.stderr);
 
     return result;
   });
-};
+}; */
 
 var chdirToOnlyDir = function() {
   return new Promise(function(resolve, reject) {
@@ -59,18 +61,18 @@ var execCmds = function(cmds) {
   var loop = (function() {
     var i = 0;
 
-    return function(x) {
+    return function(result) {
       if (i === cmds.length) {
-        return x;
+        return result;
       }
 
       var cmd = cmds[i++];
 
       if (typeof cmd === 'function') {
-        return cmd().then(loop);
+        return cmd(result).then(loop);
       }
 
-      return debugExec(cmd).then(loop);
+      return exec(cmd).then(loop);
     };
   }());
 
@@ -84,12 +86,8 @@ module.exports = function(repoStr) {
     process.chdir(workDir);
 
     return execCmds([
-      'ls',
       'git clone ' + repoStr,
-      'ls',
       chdirToOnlyDir,
-      'pwd',
-      'ls',
 
       // If package.json didn't exist, this empty one will cause `npm install` to fail immediately
       // instead of looking through parent directories.
@@ -104,7 +102,57 @@ module.exports = function(repoStr) {
       }),
 
       'npm install eslint eslint-config-opentok',
-      './node_modules/.bin/eslint $(git ls-files | grep \\.js$)'
+      'git ls-files | grep \\.js$',
+
+      function(lsFiles) {
+        var stdout = '';
+        var stderr = '';
+
+        console.log('lsFiles:', lsFiles);
+
+        return new Promise(function(resolve, reject) {
+          spawn(
+            './node_modules/.bin/eslint',
+            lsFiles.stdout.split('\n').filter(function(fname) {
+              return fname !== '';
+            })
+          ).progress(function(childProcess) {
+            childProcess.stdout.on('data', function(data) {
+              stdout += data.toString();
+            });
+
+            childProcess.stderr.on('data', function(data) {
+              stderr += data.toString();
+            });
+
+            var stdoutFinished = false;
+            var stderrFinished = false;
+
+            var tryEnd = function() {
+              if (stdoutFinished && stderrFinished) {
+                if (stderr.length > 0) {
+                  reject({
+                    stdout: stdout,
+                    stderr: stderr
+                  });
+                } else {
+                  resolve(stdout);
+                }
+              }
+            };
+
+            childProcess.stdout.on('end', function() {
+              stdoutFinished = true;
+              tryEnd();
+            });
+
+            childProcess.stderr.on('end', function() {
+              stderrFinished = true;
+              tryEnd();
+            });
+          });
+        });
+      }
     ]);
   });
 };
