@@ -1,12 +1,10 @@
 'use strict';
 
-var logWrap = require('./logWrap.js');
-
 var childProcessPromise = require('child-process-promise');
-var exec = logWrap('exec', childProcessPromise.exec);
+var exec = childProcessPromise.exec;
 var runEslint = require('./runEslint.js');
 var fs = require('fs');
-var tmpDir = logWrap('tmpDir', require('./tmpDir.js'));
+var tmpDir = require('./tmpDir.js');
 
 var once = function(fn) {
   return (function() {
@@ -64,7 +62,7 @@ var createFileIfNeeded = function(fname, genContents) {
   };
 };
 
-var execCmds = function(cmds) {
+var execCmds = function(cmds, logger) {
   var loop = (function() {
     var i = 0;
 
@@ -79,6 +77,8 @@ var execCmds = function(cmds) {
         return cmd(result).then(loop);
       }
 
+      logger('cmd: ' + cmd);
+
       return exec(cmd).then(loop);
     };
   }());
@@ -86,43 +86,53 @@ var execCmds = function(cmds) {
   return loop();
 };
 
-module.exports = function(repoStr) {
+module.exports = function(repoStr, defaultConfigParam, logger) {
+  var defaultConfig = defaultConfigParam || 'eslint-config-airbnb';
+
+  logger('start');
+
   return tmpDir().then(function(dir) {
-    var workDir = dir.path;
-    console.log(workDir);
-    process.chdir(workDir);
+    var tempDir = dir.path;
+    logger('temp dir: ' + tempDir);
+    process.chdir(tempDir);
 
     var cleanupOnce = once(function() {
+      logger('cleaning up temp dir');
       dir.cleanup();
     });
 
-    return execCmds([
-      'git clone ' + repoStr,
-      chdirToOnlyDir,
+    return execCmds(
+      [
+        'git clone ' + repoStr,
+        chdirToOnlyDir,
 
-      // If package.json didn't exist, this empty one will cause `npm install` to fail immediately
-      // instead of looking through parent directories.
-      'touch package.json',
+        // If package.json didn't exist, this empty one will cause `npm install` to fail immediately
+        // instead of looking through parent directories.
+        'touch package.json',
 
-      'npm install',
+        'npm install',
 
-      createFileIfNeeded('./.eslintrc', function() {
-        return JSON.stringify({
-          'extends': 'eslint-config-opentok'
-        });
-      }),
+        createFileIfNeeded('./.eslintrc', function() {
+          return JSON.stringify({
+            'extends': defaultConfig
+          });
+        }),
 
-      'npm install eslint eslint-config-opentok',
-      'git ls-files | grep \\.js$',
+        'npm install eslint ' + defaultConfig,
+        'git ls-files | grep \\.js$',
 
-      function(lsFiles) {
-        return runEslint(
-          lsFiles.stdout.split('\n').filter(function(fname) {
-            return fname !== '';
-          })
-        );
-      }
-    ]).then(function(result) {
+        function(lsFiles) {
+          logger('running eslint');
+
+          return runEslint(
+            lsFiles.stdout.split('\n').filter(function(fname) {
+              return fname !== '';
+            })
+          );
+        }
+      ],
+      logger
+    ).then(function(result) {
       cleanupOnce();
       return result;
     }).catch(function(err) {
