@@ -8,6 +8,24 @@ var runEslint = require('./runEslint.js');
 var fs = require('fs');
 var tmpDir = logWrap('tmpDir', require('./tmpDir.js'));
 
+var once = function(fn) {
+  return (function() {
+    var called = false;
+    var value;
+
+    return function() {
+      if (called) {
+        return value;
+      }
+
+      called = true;
+
+      value = fn.apply(this, arguments);
+      return value;
+    };
+  })();
+};
+
 var chdirToOnlyDir = function() {
   return new Promise(function(resolve, reject) {
     fs.readdir('.', function(err, files) {
@@ -74,6 +92,10 @@ module.exports = function(repoStr) {
     console.log(workDir);
     process.chdir(workDir);
 
+    var cleanupOnce = once(function() {
+      dir.cleanup();
+    });
+
     return execCmds([
       'git clone ' + repoStr,
       chdirToOnlyDir,
@@ -100,6 +122,12 @@ module.exports = function(repoStr) {
           })
         );
       }
-    ]);
+    ]).then(function(result) {
+      cleanupOnce();
+      return result;
+    }).catch(function(err) {
+      cleanupOnce();
+      throw err;
+    });
   });
 };

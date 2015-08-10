@@ -13,6 +13,6 @@
     "eslint": "^0.24.1",
     "eslint-config-opentok": "0.0.1",
     "eslint-plugin-require-path-exists": "^1.0.15",
-    "tmp": "0.0.26"
+    "tmp": "git+ssh://git@github.com:voltrevo/node-tmp.git"
   }
 }
